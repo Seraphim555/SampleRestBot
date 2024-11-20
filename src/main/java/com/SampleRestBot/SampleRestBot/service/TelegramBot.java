@@ -3,6 +3,7 @@ package com.SampleRestBot.SampleRestBot.service;
 import com.SampleRestBot.SampleRestBot.config.BotConfig;
 import com.SampleRestBot.SampleRestBot.model.User;
 import com.SampleRestBot.SampleRestBot.model.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -14,6 +15,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.sql.Timestamp;
 
+@Slf4j
 @Component
 public class TelegramBot extends TelegramLongPollingBot {
 
@@ -88,7 +90,9 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void startCommandReceived(long chatId, String name){
 
         String answer = "Здорова, " + name + ", не суетись!";
-        //String answer = "Привет, " + name + ", напши свое имя  -_-";
+
+        //log.info("Ответил пользователю {}", name);
+        //log.info("Replied to user {}", name);
 
         sendMessage(chatId, answer);
 
@@ -104,8 +108,9 @@ public class TelegramBot extends TelegramLongPollingBot {
             execute(message);
         }
         catch (TelegramApiException e){
+            //log.error("Произошла ошибка: {}", e.getMessage());
+            //log.error("Error occurred: {}", e.getMessage());
 
         }
     }
-
 }
