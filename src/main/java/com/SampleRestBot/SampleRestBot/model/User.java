@@ -2,10 +2,14 @@ package com.SampleRestBot.SampleRestBot.model;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.sql.Timestamp;
 
-@Entity(name = "userDataTable")
+@Setter
+@Getter
+@Entity(name = "usersDataTable")
 public class User {
 
     @Id
@@ -17,47 +21,7 @@ public class User {
 
     private String userName;
 
-    private Timestamp registredAt;
-
-    public Timestamp getRegistredAt() {
-        return registredAt;
-    }
-
-    public void setRegistredAt(Timestamp registredAt) {
-        this.registredAt = registredAt;
-    }
-
-    public String getFirstName() {
-        return firstName;
-    }
-
-    public void setFirstName(String firstName) {
-        this.firstName = firstName;
-    }
-
-    public Long getChatId() {
-        return chatId;
-    }
-
-    public void setChatId(Long chatId) {
-        this.chatId = chatId;
-    }
-
-    public String getLastName() {
-        return lastName;
-    }
-
-    public void setLastName(String lastName) {
-        this.lastName = lastName;
-    }
-
-    public String getUserName() {
-        return userName;
-    }
-
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
+    private Timestamp registeredAt;
 
     @Override
     public String toString() {
@@ -66,7 +30,7 @@ public class User {
                 ", firstName='" + firstName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", userName='" + userName + '\'' +
-                ", registredAt=" + registredAt +
+                ", registredAt=" + registeredAt +
                 '}';
     }
 }

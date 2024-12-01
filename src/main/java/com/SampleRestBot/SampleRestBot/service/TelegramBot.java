@@ -21,6 +21,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     @Autowired
     private UserRepository userRepository;
+
     final BotConfig config;
 
     public TelegramBot(BotConfig config) {
@@ -54,17 +55,18 @@ public class TelegramBot extends TelegramLongPollingBot {
                     break;
 
                 default: sendMessage(chatId, "Сорян, пока не знаю такой команды...");
-                    //default: sendMessage(chatId, "Это не то, чего я ждал...");
+
             }
         }
 
     }
 
     private void registerUser(Message msg){
+
         if(userRepository.findById(msg.getChatId()).isEmpty()){
+
             Long chatId = msg.getChatId();
             Chat chat = msg.getChat();
-
 
             if (chat != null) {
                 User user = new User();
@@ -72,17 +74,17 @@ public class TelegramBot extends TelegramLongPollingBot {
                 user.setFirstName(chat.getFirstName());
                 user.setLastName(chat.getLastName());
                 user.setUserName(chat.getUserName());
-                user.setRegistredAt(new Timestamp(System.currentTimeMillis()));
+                user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
 
-                // Логи нужно прописать, но пока так
                 try {
                     userRepository.save(user);
-                    //log.info("user saved: " + user);
+                    log.info("Добавлен новый пользователь: {}", user.getUserName());
                 } catch (Exception e) {
-                    // log.error("Error saving user", e);
+                    log.error("Произошла ошибка при добавлении нового пользователя: {}", e.getMessage());
                 }
-            } else {
-                // log.warn("Chat is null for message: " + msg);
+            }
+            else {
+                log.warn("Чат пустой: {}", msg.getChatId());
             }
         }
     }
@@ -91,7 +93,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         String answer = "Здорова, " + name + ", не суетись!";
 
-        //log.info("Ответил пользователю {}", name);
+        log.info("Ответил пользователю {}", name);
         //log.info("Replied to user {}", name);
 
         sendMessage(chatId, answer);
@@ -108,7 +110,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             execute(message);
         }
         catch (TelegramApiException e){
-            //log.error("Произошла ошибка: {}", e.getMessage());
+            log.error("Произошла ошибка: {}", e.getMessage());
             //log.error("Error occurred: {}", e.getMessage());
 
         }
