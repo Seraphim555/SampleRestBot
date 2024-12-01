@@ -58,6 +58,22 @@ public class TelegramBot extends TelegramLongPollingBot {
                     startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
                     break;
 
+                case "Регистрация":
+                    sendMessage(chatId, "Эта функция в разработке...");
+                    break;
+
+                case "Вызов официанта":
+                    sendMessage(chatId, "Григорий сейчас подойдет к вам)");
+                    break;
+
+                case "Info":
+                    sendMessage(chatId, "Мы располагаемся по адресу: Тургенева 4");
+                    break;
+
+                case "Забронировать столик":
+                    sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
+                    break;
+
                 default: sendMessage(chatId, "Сорян, пока не знаю такой команды...");
 
             }
@@ -110,26 +126,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setChatId(String.valueOf(chatId));
         message.setText(textToSend);
 
-        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-
-        List<KeyboardRow> keyboardRows = new ArrayList<>();
-
-        KeyboardRow row = new KeyboardRow();
-
-        row.add("Вика");
-        row.add("зацени");
-
-        keyboardRows.add(row);
-
-        row = new KeyboardRow();
-
-        row.add("какие");
-        row.add("кнопки");
-        row.add("смешные");
-
-        keyboardRows.add(row);
-
-        keyboardMarkup.setKeyboard(keyboardRows);
+        ReplyKeyboardMarkup keyboardMarkup = getReplyKeyboardMarkup();
 
         message.setReplyMarkup(keyboardMarkup);
 
@@ -141,5 +138,30 @@ public class TelegramBot extends TelegramLongPollingBot {
             //log.error("Error occurred: {}", e.getMessage());
 
         }
+    }
+
+    private static ReplyKeyboardMarkup getReplyKeyboardMarkup() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        //keyboardMarkup.setResizeKeyboard(true);
+        //делает кнопки меньше
+
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+
+        KeyboardRow row = new KeyboardRow();
+
+        row.add("Регистрация");
+
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
+
+        row.add("Info");
+        row.add("Вызов официанта");
+        row.add("Забронировать столик");
+
+        keyboardRows.add(row);
+
+        keyboardMarkup.setKeyboard(keyboardRows);
+        return keyboardMarkup;
     }
 }
