@@ -3,6 +3,7 @@ package com.SampleRestBot.SampleRestBot.service;
 import com.SampleRestBot.SampleRestBot.config.BotConfig;
 import com.SampleRestBot.SampleRestBot.model.User;
 import com.SampleRestBot.SampleRestBot.model.UserRepository;
+import com.SampleRestBot.SampleRestBot.stage.StageOfChat;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -54,6 +55,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         return config.getToken();
     }
 
+    StageOfChat stageOfChat = StageOfChat.START;
+
     @Override
     public void onUpdateReceived(Update update) {
 
@@ -65,25 +68,34 @@ public class TelegramBot extends TelegramLongPollingBot {
             switch (messageText){
 
                 case "/start":
-
+                    stageOfChat = StageOfChat.START;
                     registerUser(update.getMessage());
                     startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
                     break;
 
-                case "Регистрация":
-                    sendMessage(chatId, "Эта функция в разработке...");
-                    break;
-
                 case "Вызов официанта":
+                    //stageOfChat = StageOfChat.CALLING_THE_WAITER;
+                    stageOfChat = StageOfChat.START;
                     sendMessage(chatId, "Григорий сейчас подойдет к вам)");
                     break;
 
-                case "Info":
-                    sendMessage(chatId, "Мы располагаемся по адресу: Тургенева 4");
+                case "Info": // в кейс инфо можно попасть находясь на любом стейдже диалога
+                    stageOfChat = StageOfChat.INFO;
+                    sendMessage(chatId, "Какой вопрос вас интересует?");
                     break;
 
                 case "Забронировать столик":
+                    stageOfChat = StageOfChat.RESERVE_OF_TABLE;
                     sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
+                    break;
+
+                case "Назад":
+                    switch (stageOfChat){
+                        case INFO, CALLING_THE_WAITER, RESERVE_OF_TABLE -> {
+                            stageOfChat = StageOfChat.START;
+                            sendMessage(chatId, "Чем могу вам помочь?");
+                        }
+                    }
                     break;
 
                 default: sendMessage(chatId, "Сорян, пока не знаю такой команды...");
@@ -124,7 +136,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private void startCommandReceived(long chatId, String name){
 
-        String answer = "Здорова, " + name + ", не суетись!";
+        String answer = "Доброго времени суток, " + name + ", чем могу вам помочь?";
 
         log.info("Ответил пользователю {}", name);
         //log.info("Replied to user {}", name);
@@ -139,9 +151,29 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setChatId(String.valueOf(chatId));
         message.setText(textToSend);
 
-        ReplyKeyboardMarkup keyboardMarkup = getReplyKeyboardMarkup();
+        switch (stageOfChat){
 
-        message.setReplyMarkup(keyboardMarkup);
+            case START -> {
+                ReplyKeyboardMarkup keyboardMarkup = startReplyKeyboardMarkup();
+                message.setReplyMarkup(keyboardMarkup);
+            }
+
+            case INFO -> {
+                ReplyKeyboardMarkup keyboardMarkup = infoReplyKeyboardMarkup();
+                message.setReplyMarkup(keyboardMarkup);
+            }
+
+            case RESERVE_OF_TABLE -> {
+                ReplyKeyboardMarkup keyboardMarkup = reserveReplyKeyboardMarkup();
+                message.setReplyMarkup(keyboardMarkup);
+            }
+
+            case CALLING_THE_WAITER -> {
+                ReplyKeyboardMarkup keyboardMarkup = callingReplyKeyboardMarkup();
+                message.setReplyMarkup(keyboardMarkup);
+            }
+
+        }
 
         try {
             execute(message);
@@ -153,7 +185,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    private static ReplyKeyboardMarkup getReplyKeyboardMarkup() {
+    private static ReplyKeyboardMarkup startReplyKeyboardMarkup() {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         //keyboardMarkup.setResizeKeyboard(true);
         //делает кнопки меньше
@@ -161,12 +193,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         List<KeyboardRow> keyboardRows = new ArrayList<>();
 
         KeyboardRow row = new KeyboardRow();
-
-        row.add("Регистрация");
-
-        keyboardRows.add(row);
-
-        row = new KeyboardRow();
 
         row.add("Info");
         row.add("Вызов официанта");
@@ -177,4 +203,77 @@ public class TelegramBot extends TelegramLongPollingBot {
         keyboardMarkup.setKeyboard(keyboardRows);
         return keyboardMarkup;
     }
+
+    private static ReplyKeyboardMarkup infoReplyKeyboardMarkup() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        //keyboardMarkup.setResizeKeyboard(true);
+
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+
+        KeyboardRow row = new KeyboardRow();
+
+        row.add("Меню");
+        row.add("Локация");
+        row.add("Новинки");
+
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
+
+        row.add("Назад");
+
+        keyboardRows.add(row);
+
+        keyboardMarkup.setKeyboard(keyboardRows);
+        return keyboardMarkup;
+    }
+
+    private static ReplyKeyboardMarkup reserveReplyKeyboardMarkup() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        //keyboardMarkup.setResizeKeyboard(true);
+
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+
+        KeyboardRow row = new KeyboardRow();
+
+        row.add("03.11");
+        row.add("04.11");
+        row.add("05.11");
+
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
+
+        row.add("Назад");
+
+        keyboardRows.add(row);
+
+        keyboardMarkup.setKeyboard(keyboardRows);
+        return keyboardMarkup;
+    }
+
+    private static ReplyKeyboardMarkup callingReplyKeyboardMarkup() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        //keyboardMarkup.setResizeKeyboard(true);
+
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+
+        KeyboardRow row = new KeyboardRow();
+
+        row.add("000");
+        row.add("0");
+        row.add("00000");
+
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
+
+        row.add("Назад");
+
+        keyboardRows.add(row);
+
+        keyboardMarkup.setKeyboard(keyboardRows);
+        return keyboardMarkup;
+    }
+
 }
