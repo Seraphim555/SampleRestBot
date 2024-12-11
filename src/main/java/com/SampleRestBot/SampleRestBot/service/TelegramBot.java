@@ -94,7 +94,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                                     }
                                     else {
                                         stageOfChat = StageOfChat.USER_REGISTRATION;
-                                        sendMessage(chatId, "Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться      :)");
+                                        sendMessage(chatId, "Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться  :)");
                                     }
                                 } catch (IOException e) { throw new RuntimeException(e); } // Здесь прописать нормальные логи
                                 break;
@@ -107,7 +107,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                                     }
                                     else {
                                         stageOfChat = StageOfChat.USER_REGISTRATION;
-                                        sendMessage(chatId, "Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться      :)");
+                                        sendMessage(chatId, "Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться  :)");
                                     }
                                 } catch (IOException e) { throw new RuntimeException(e); }
                                 break;
@@ -169,13 +169,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                                     sendMessage(chatId, "Для вас есть персональное место!\nВыберите удобное время:");
                                 else
                                     sendMessage(chatId, "Есть свободные места для " + messageText + "-x человек." + "\nВыберите удобное время:");
+                            } else {
+                                sendMessage(chatId, "Введите число от 1 до 6");
                             }
-                            else if (messageText.equals("Назад")) {
-                                stageOfChat = StageOfChat.RESERVE_OF_TABLE;
-                                sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
-                            } else sendMessage(chatId, "Введите число от 1 до 6");
-
-                        } catch (NumberFormatException e) {
+                        }
+                        catch (NumberFormatException e) {
 
                             if (messageText.equals("Назад")) {
                                 stageOfChat = StageOfChat.RESERVE_OF_TABLE;
@@ -191,7 +189,13 @@ public class TelegramBot extends TelegramLongPollingBot {
                         sendMessage(chatId, "Запись подтверждена, ждем вас с нетерпением!");
                     }
 
-                    default -> sendMessage(chatId, "Неверный формат ввода.");
+                    // Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться  :)
+                    case USER_REGISTRATION -> {
+                        if (messageText.equals("Назад")) {
+                            stageOfChat = StageOfChat.START;
+                            sendMessage(chatId, "Чем могу вам помочь?");
+                        } else sendMessage(chatId, "Неверный формат ввода.");
+                    }
 
                 }
             }
@@ -443,7 +447,9 @@ public class TelegramBot extends TelegramLongPollingBot {
     private static ReplyKeyboardMarkup registrationReplyKeyboardMarkup() {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         keyboardMarkup.setResizeKeyboard(true);
-        keyboardMarkup.setOneTimeKeyboard(true); // Убираем клавиатуру после отправки контакта
+        // keyboardMarkup.setOneTimeKeyboard(true); // Убираем клавиатуру после отправки контакта
+
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
 
         KeyboardButton contactButton = new KeyboardButton();
         contactButton.setText("Отправить контакт");
@@ -451,10 +457,13 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         KeyboardRow row = new KeyboardRow();
         row.add(contactButton);
+        keyboardRows.add(row);
 
-        List<KeyboardRow> keyboard = new ArrayList<>();
-        keyboard.add(row);
-        keyboardMarkup.setKeyboard(keyboard);
+        row = new KeyboardRow();
+        row.add("Назад");
+        keyboardRows.add(row);
+
+        keyboardMarkup.setKeyboard(keyboardRows);
         return keyboardMarkup;
     }
 
