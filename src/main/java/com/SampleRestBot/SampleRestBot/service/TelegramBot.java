@@ -3,6 +3,7 @@ package com.SampleRestBot.SampleRestBot.service;
 import com.SampleRestBot.SampleRestBot.config.BotConfig;
 import com.SampleRestBot.SampleRestBot.model.User;
 import com.SampleRestBot.SampleRestBot.model.UserRepository;
+import com.SampleRestBot.SampleRestBot.mySource.GetNearThreeDays;
 import com.SampleRestBot.SampleRestBot.mySource.StageOfChat;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -236,9 +237,13 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         KeyboardRow row = new KeyboardRow();
 
-        row.add("03.11");
-        row.add("04.11");
-        row.add("05.11");
+        String today = GetNearThreeDays.getToday();
+        String tomorrow = GetNearThreeDays.getTomorrow();
+        String nextTomorrow = GetNearThreeDays.getNextTomorrow();
+
+        row.add(today);
+        row.add(tomorrow);
+        row.add(nextTomorrow);
 
         keyboardRows.add(row);
 
