@@ -5,6 +5,7 @@ import com.SampleRestBot.SampleRestBot.model.User;
 import com.SampleRestBot.SampleRestBot.model.UserRepository;
 import com.SampleRestBot.SampleRestBot.mySource.GetNearThreeDays;
 import com.SampleRestBot.SampleRestBot.mySource.StageOfChat;
+import com.SampleRestBot.SampleRestBot.mySource.generalConstants.GeneralConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -66,44 +67,105 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             long chatId = update.getMessage().getChatId();
 
-            switch (messageText){
+            if (messageText.equals("/start")) {
+                registerUser(update.getMessage());
+                stageOfChat = StageOfChat.START;
+                startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
+            }
+            else {
 
-                case "/start":
-                    stageOfChat = StageOfChat.START;
-                    registerUser(update.getMessage());
-                    startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
-                    break;
+                switch (stageOfChat) {
 
-                case "Вызов официанта":
-                    //stageOfChat = StageOfChat.CALLING_THE_WAITER;
-                    stageOfChat = StageOfChat.START;
-                    sendMessage(chatId, "Григорий сейчас подойдет к вам)");
-                    break;
+                    case START -> {
+                        switch (messageText) {
 
-                case "Info": // в кейс инфо можно попасть находясь на любом стейдже диалога
-                    stageOfChat = StageOfChat.INFO;
-                    sendMessage(chatId, "Какой вопрос вас интересует?");
-                    break;
+                            case "Вызов официанта":
+                                //stageOfChat = StageOfChat.CALLING_THE_WAITER;
+                                sendMessage(chatId, "Григорий сейчас подойдет к вам)");
+                                break;
 
-                case "Забронировать столик":
-                    stageOfChat = StageOfChat.RESERVE_OF_TABLE;
-                    sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
-                    break;
+                            case "Info": // в кейс инфо можно попасть находясь на любом стейдже диалога
+                                stageOfChat = StageOfChat.INFO;
+                                sendMessage(chatId, "Какой вопрос вас интересует?");
+                                break;
 
-                case "Назад":
-                    switch (stageOfChat){
-                        case INFO, CALLING_THE_WAITER, RESERVE_OF_TABLE -> {
-                            stageOfChat = StageOfChat.START;
-                            sendMessage(chatId, "Чем могу вам помочь?");
+                            case "Забронировать столик":
+                                stageOfChat = StageOfChat.RESERVE_OF_TABLE;
+                                sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
+                                break;
+
+                            default:
+                                sendMessage(chatId, "Неверный формат ввода.");
+
                         }
                     }
-                    break;
 
-                default: sendMessage(chatId, "Сорян, пока не знаю такой команды...");
+                    // Какой вопрос вас интересует?
+                    case INFO -> {
+                        switch (messageText) {
 
+                            case "Меню":
+                                sendMessage(chatId, "Пока умеем только варить пельмени");
+                                break;
+
+                            case "Локация":
+                                sendMessage(chatId, "Наш филиал располагается по адресу: \nг. Екатеринбург, ул. Тургенева, д. 4");
+                                break;
+
+                            case "Новинки":
+                                sendMessage(chatId, "Пока что ничего нового(");
+                                break;
+
+                            case "Назад":
+                                stageOfChat = StageOfChat.START;
+                                sendMessage(chatId, "Чем могу вам помочь?");
+                                break;
+
+                            default:
+                                sendMessage(chatId, "Неверный формат ввода.");
+
+                        }
+                    }
+
+                    // На какое число вы бы хотели назначить бронь?
+                    case RESERVE_OF_TABLE -> {
+                        if (messageText.equals(GetNearThreeDays.getToday()) || messageText.equals(GetNearThreeDays.getTomorrow()) || messageText.equals(GetNearThreeDays.getNextTomorrow())) {
+                            stageOfChat = StageOfChat.RESERVE_OF_TABLE_PERSON;
+                            sendMessage(chatId, "На какое количество человек нужен столик? (до 6 человек)");
+                        } else if (messageText.equals("Назад")) {
+                            stageOfChat = StageOfChat.START;
+                            sendMessage(chatId, "Чем могу вам помочь?");
+                        } else sendMessage(chatId, "Неверный формат ввода.");
+
+                    }
+
+                    // На какое количество человек нужен столик? (до 6 человек)
+                    case RESERVE_OF_TABLE_PERSON -> {
+                        try {
+
+                            int count = Integer.parseInt(messageText);
+
+                            if (1 <= count && count <= GeneralConstants.getMaxTableCapacity()) {
+                                stageOfChat = StageOfChat.RESERVE_OF_TABLE_TIME;
+                                sendMessage(chatId, "На это время есть свободные столы на " + messageText + " человек.");
+                            } else if (messageText.equals("Назад")) {
+                                stageOfChat = StageOfChat.RESERVE_OF_TABLE;
+                                sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
+                            } else sendMessage(chatId, "Введите число от 1 до 6");
+
+                        } catch (NumberFormatException e) {
+
+                            if (messageText.equals("Назад")) {
+                                stageOfChat = StageOfChat.RESERVE_OF_TABLE;
+                                sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
+                            } else sendMessage(chatId, "Неверный формат ввода.");
+
+                        }
+                    }
+
+                }
             }
         }
-
     }
 
     private void registerUser(Message msg){
@@ -174,6 +236,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                 message.setReplyMarkup(keyboardMarkup);
             }
 
+            case RESERVE_OF_TABLE_PERSON -> {
+                ReplyKeyboardMarkup keyboardMarkup = reservePersonReplyKeyboardMarkup();
+                message.setReplyMarkup(keyboardMarkup);
+            }
+
         }
 
         try {
@@ -188,17 +255,21 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private static ReplyKeyboardMarkup startReplyKeyboardMarkup() {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        //keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setResizeKeyboard(true);
         //делает кнопки меньше
 
         List<KeyboardRow> keyboardRows = new ArrayList<>();
 
         KeyboardRow row = new KeyboardRow();
-
         row.add("Info");
-        row.add("Вызов официанта");
-        row.add("Забронировать столик");
+        keyboardRows.add(row);
 
+        row = new KeyboardRow();
+        row.add("Вызов официанта");
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
+        row.add("Забронировать столик");
         keyboardRows.add(row);
 
         keyboardMarkup.setKeyboard(keyboardRows);
@@ -207,22 +278,24 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private static ReplyKeyboardMarkup infoReplyKeyboardMarkup() {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        //keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setResizeKeyboard(true);
 
         List<KeyboardRow> keyboardRows = new ArrayList<>();
 
         KeyboardRow row = new KeyboardRow();
-
         row.add("Меню");
-        row.add("Локация");
-        row.add("Новинки");
-
         keyboardRows.add(row);
 
         row = new KeyboardRow();
+        row.add("Локация");
+        keyboardRows.add(row);
 
+        row = new KeyboardRow();
+        row.add("Новинки");
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
         row.add("Назад");
-
         keyboardRows.add(row);
 
         keyboardMarkup.setKeyboard(keyboardRows);
@@ -231,26 +304,28 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private static ReplyKeyboardMarkup reserveReplyKeyboardMarkup() {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        //keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setResizeKeyboard(true);
 
         List<KeyboardRow> keyboardRows = new ArrayList<>();
-
-        KeyboardRow row = new KeyboardRow();
 
         String today = GetNearThreeDays.getToday();
         String tomorrow = GetNearThreeDays.getTomorrow();
         String nextTomorrow = GetNearThreeDays.getNextTomorrow();
 
+        KeyboardRow row = new KeyboardRow();
         row.add(today);
-        row.add(tomorrow);
-        row.add(nextTomorrow);
-
         keyboardRows.add(row);
 
         row = new KeyboardRow();
+        row.add(tomorrow);
+        keyboardRows.add(row);
 
+        row = new KeyboardRow();
+        row.add(nextTomorrow);
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
         row.add("Назад");
-
         keyboardRows.add(row);
 
         keyboardMarkup.setKeyboard(keyboardRows);
@@ -259,22 +334,26 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private static ReplyKeyboardMarkup callingReplyKeyboardMarkup() {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        //keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setResizeKeyboard(true);
 
         List<KeyboardRow> keyboardRows = new ArrayList<>();
 
         KeyboardRow row = new KeyboardRow();
-
-        row.add("000");
-        row.add("0");
-        row.add("00000");
-
+        row.add("Назад");
         keyboardRows.add(row);
 
-        row = new KeyboardRow();
+        keyboardMarkup.setKeyboard(keyboardRows);
+        return keyboardMarkup;
+    }
 
+    private static ReplyKeyboardMarkup reservePersonReplyKeyboardMarkup() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+
+        KeyboardRow row = new KeyboardRow();
         row.add("Назад");
-
         keyboardRows.add(row);
 
         keyboardMarkup.setKeyboard(keyboardRows);
