@@ -6,6 +6,7 @@ import com.SampleRestBot.SampleRestBot.model.UserRepository;
 import com.SampleRestBot.SampleRestBot.mySource.GetNearThreeDays;
 import com.SampleRestBot.SampleRestBot.mySource.StageOfChat;
 import com.SampleRestBot.SampleRestBot.mySource.generalConstants.GeneralConstants;
+import com.SampleRestBot.SampleRestBot.mySource.savesUsers.SavesUsersInterface;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -19,8 +20,10 @@ import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,24 +77,39 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
             else {
 
-                switch (stageOfChat) {
+                switch (stageOfChat) { // Прописать все текстовые ответы в виде отдельных констант
 
                     case START -> {
                         switch (messageText) {
 
-                            case "Вызов официанта":
-                                //stageOfChat = StageOfChat.CALLING_THE_WAITER;
-                                sendMessage(chatId, "Григорий сейчас подойдет к вам)");
-                                break;
-
-                            case "Info": // в кейс инфо можно попасть находясь на любом стейдже диалога
+                            case "Info":
                                 stageOfChat = StageOfChat.INFO;
                                 sendMessage(chatId, "Какой вопрос вас интересует?");
                                 break;
 
+                            case "Вызов официанта":
+                                try {
+                                    if (SavesUsersInterface.hasUser(update.getMessage().getChat().getUserName())) {
+                                        sendMessage(chatId, "Григорий сейчас подойдет к вам)");
+                                    }
+                                    else {
+                                        stageOfChat = StageOfChat.USER_REGISTRATION;
+                                        sendMessage(chatId, "Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться      :)");
+                                    }
+                                } catch (IOException e) { throw new RuntimeException(e); } // Здесь прописать нормальные логи
+                                break;
+
                             case "Забронировать столик":
-                                stageOfChat = StageOfChat.RESERVE_OF_TABLE;
-                                sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
+                                try {
+                                    if (SavesUsersInterface.hasUser(update.getMessage().getChat().getUserName())) {
+                                        stageOfChat = StageOfChat.RESERVE_OF_TABLE;
+                                        sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
+                                    }
+                                    else {
+                                        stageOfChat = StageOfChat.USER_REGISTRATION;
+                                        sendMessage(chatId, "Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться      :)");
+                                    }
+                                } catch (IOException e) { throw new RuntimeException(e); }
                                 break;
 
                             default:
@@ -167,14 +185,34 @@ public class TelegramBot extends TelegramLongPollingBot {
                         }
                     }
 
+                    // Выберите удобное время
                     case RESERVE_OF_TABLE_TIME -> {
                         stageOfChat = StageOfChat.START;
                         sendMessage(chatId, "Запись подтверждена, ждем вас с нетерпением!");
                     }
 
+                    default -> sendMessage(chatId, "Неверный формат ввода.");
+
                 }
             }
         }
+
+        else if (update.hasMessage() && update.getMessage().hasContact()) {
+
+            String userName = update.getMessage().getChat().getUserName();
+            String phoneNumber = update.getMessage().getContact().getPhoneNumber();
+
+            try {
+                SavesUsersInterface.saveUser(userName, phoneNumber);
+            }
+            catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            stageOfChat = StageOfChat.START;
+            sendMessage(update.getMessage().getChatId(), "Теперь мы с вами знакомы, спасибо за доверие!");
+        }
+
     }
 
     private void registerUser(Message msg){
@@ -211,7 +249,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         String answer = "Доброго времени суток, " + name + ", чем могу вам помочь?";
 
         log.info("Ответил пользователю {}", name);
-        //log.info("Replied to user {}", name);
 
         sendMessage(chatId, answer);
 
@@ -255,6 +292,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                 message.setReplyMarkup(keyboardMarkup);
             }
 
+            case USER_REGISTRATION -> {
+                ReplyKeyboardMarkup keyboardMarkup = registrationReplyKeyboardMarkup();
+                message.setReplyMarkup(keyboardMarkup);
+            }
+
         }
 
         try {
@@ -262,8 +304,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
         catch (TelegramApiException e){
             log.error("Произошла ошибка: {}", e.getMessage());
-            //log.error("Error occurred: {}", e.getMessage());
-
         }
     }
 
@@ -397,6 +437,24 @@ public class TelegramBot extends TelegramLongPollingBot {
         keyboardRows.add(row);
 
         keyboardMarkup.setKeyboard(keyboardRows);
+        return keyboardMarkup;
+    }
+
+    private static ReplyKeyboardMarkup registrationReplyKeyboardMarkup() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(true); // Убираем клавиатуру после отправки контакта
+
+        KeyboardButton contactButton = new KeyboardButton();
+        contactButton.setText("Отправить контакт");
+        contactButton.setRequestContact(true); // Включаем запрос контакта
+
+        KeyboardRow row = new KeyboardRow();
+        row.add(contactButton);
+
+        List<KeyboardRow> keyboard = new ArrayList<>();
+        keyboard.add(row);
+        keyboardMarkup.setKeyboard(keyboard);
         return keyboardMarkup;
     }
 
