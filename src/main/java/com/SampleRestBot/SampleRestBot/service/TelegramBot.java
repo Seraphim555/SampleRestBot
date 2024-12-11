@@ -147,8 +147,12 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                             if (1 <= count && count <= GeneralConstants.getMaxTableCapacity()) {
                                 stageOfChat = StageOfChat.RESERVE_OF_TABLE_TIME;
-                                sendMessage(chatId, "На это время есть свободные столы на " + messageText + " человек.");
-                            } else if (messageText.equals("Назад")) {
+                                if (count == 1)
+                                    sendMessage(chatId, "Для вас есть персональное место!\nВыберите удобное время:");
+                                else
+                                    sendMessage(chatId, "Есть свободные места для " + messageText + "-x человек." + "\nВыберите удобное время:");
+                            }
+                            else if (messageText.equals("Назад")) {
                                 stageOfChat = StageOfChat.RESERVE_OF_TABLE;
                                 sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
                             } else sendMessage(chatId, "Введите число от 1 до 6");
@@ -161,6 +165,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                             } else sendMessage(chatId, "Неверный формат ввода.");
 
                         }
+                    }
+
+                    case RESERVE_OF_TABLE_TIME -> {
+                        stageOfChat = StageOfChat.START;
+                        sendMessage(chatId, "Запись подтверждена, ждем вас с нетерпением!");
                     }
 
                 }
@@ -238,6 +247,11 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             case RESERVE_OF_TABLE_PERSON -> {
                 ReplyKeyboardMarkup keyboardMarkup = reservePersonReplyKeyboardMarkup();
+                message.setReplyMarkup(keyboardMarkup);
+            }
+
+            case RESERVE_OF_TABLE_TIME -> {
+                ReplyKeyboardMarkup keyboardMarkup = reserveTimeReplyKeyboardMarkup();
                 message.setReplyMarkup(keyboardMarkup);
             }
 
@@ -353,6 +367,32 @@ public class TelegramBot extends TelegramLongPollingBot {
         List<KeyboardRow> keyboardRows = new ArrayList<>();
 
         KeyboardRow row = new KeyboardRow();
+        row.add("Назад");
+        keyboardRows.add(row);
+
+        keyboardMarkup.setKeyboard(keyboardRows);
+        return keyboardMarkup;
+    }
+
+    private static ReplyKeyboardMarkup reserveTimeReplyKeyboardMarkup() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+
+        KeyboardRow row = new KeyboardRow();
+        row.add("11:00");
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
+        row.add("15:00");
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
+        row.add("19:00");
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
         row.add("Назад");
         keyboardRows.add(row);
 
