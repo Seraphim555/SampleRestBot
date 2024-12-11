@@ -3,7 +3,7 @@ package com.SampleRestBot.SampleRestBot.service;
 import com.SampleRestBot.SampleRestBot.config.BotConfig;
 import com.SampleRestBot.SampleRestBot.model.User;
 import com.SampleRestBot.SampleRestBot.model.UserRepository;
-import com.SampleRestBot.SampleRestBot.stage.StageOfChat;
+import com.SampleRestBot.SampleRestBot.mySource.StageOfChat;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
