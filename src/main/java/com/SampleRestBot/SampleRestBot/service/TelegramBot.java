@@ -217,6 +217,10 @@ public class TelegramBot extends TelegramLongPollingBot {
             sendMessage(update.getMessage().getChatId(), "Теперь мы с вами знакомы, спасибо за доверие!");
         }
 
+        else if (update.hasMessage()) {
+            sendMessage(update.getMessage().getChatId(), "Неверный формат ввода.");
+        }
+
     }
 
     private void registerUser(Message msg){
