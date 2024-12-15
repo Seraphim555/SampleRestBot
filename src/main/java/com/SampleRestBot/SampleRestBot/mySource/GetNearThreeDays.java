@@ -5,7 +5,7 @@ import java.time.format.DateTimeFormatter;
 
 public class GetNearThreeDays {
 
-    private static final DateTimeFormatter DEFAULT_FORMATTER = DateTimeFormatter.ofPattern("dd.MM");
+    private static final DateTimeFormatter DEFAULT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public static String getToday() {
         return LocalDate.now().format(DEFAULT_FORMATTER);

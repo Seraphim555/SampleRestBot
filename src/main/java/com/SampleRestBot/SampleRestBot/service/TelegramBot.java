@@ -9,7 +9,6 @@ import com.SampleRestBot.SampleRestBot.mySource.GetNearThreeDays;
 import com.SampleRestBot.SampleRestBot.mySource.StageOfChat;
 import com.SampleRestBot.SampleRestBot.mySource.generalConstants.GeneralConstants;
 import jakarta.transaction.Transactional;
-import com.SampleRestBot.SampleRestBot.mySource.savesUsers.SavesUsersInterface;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -29,11 +28,9 @@ import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import jakarta.annotation.PostConstruct;
 
-import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -127,28 +124,12 @@ public class TelegramBot extends TelegramLongPollingBot {
                                 break;
 
                             case "Вызов официанта":
-                                try {
-                                    if (SavesUsersInterface.hasUser(update.getMessage().getChat().getUserName())) {
-                                        sendMessage(chatId, "Григорий сейчас подойдет к вам)");
-                                    }
-                                    else {
-                                        stageOfChat = StageOfChat.USER_REGISTRATION;
-                                        sendMessage(chatId, "Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться  :)");
-                                    }
-                                } catch (IOException e) { throw new RuntimeException(e); } // Здесь прописать нормальные логи
+                                sendMessage(chatId, "Григорий сейчас подойдет к вам)");
                                 break;
 
                             case "Забронировать столик":
-                                try {
-                                    if (SavesUsersInterface.hasUser(update.getMessage().getChat().getUserName())) {
-                                        stageOfChat = StageOfChat.RESERVE_OF_TABLE;
-                                        sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
-                                    }
-                                    else {
-                                        stageOfChat = StageOfChat.USER_REGISTRATION;
-                                        sendMessage(chatId, "Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться  :)");
-                                    }
-                                } catch (IOException e) { throw new RuntimeException(e); }
+                                stageOfChat = StageOfChat.RESERVE_OF_TABLE;
+                                sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
                                 break;
 
                             default:
@@ -224,10 +205,9 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                     // Выберите удобное время
                     case RESERVE_OF_TABLE_TIME -> {
-                        String selectedTime = messageText;
 
-                        if (selectedTime.equals("11:00") || selectedTime.equals("15:00") || selectedTime.equals("19:00")) {
-                            List<Reservation> availableTables = reservationRepository.findByDateAndTime(GetNearThreeDays.getToday(), selectedTime);
+                        if (messageText.equals("11:00") || messageText.equals("15:00") || messageText.equals("19:00")) {
+                            List<Reservation> availableTables = reservationRepository.findByDateAndTime(GetNearThreeDays.getToday(), messageText);
 
                             if (!availableTables.isEmpty()) {
                                 Reservation table = availableTables.stream().filter(r -> !r.isReserved()).findFirst().orElse(null);
@@ -235,7 +215,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                                 if (table != null) {
                                     table.setReserved(true);
                                     reservationRepository.save(table);
-                                    sendMessage(chatId, "Столик успешно забронирован на " + selectedTime);
+                                    sendMessage(chatId, "Столик успешно забронирован на " + messageText);
                                     stageOfChat = StageOfChat.START;
                                 } else {
                                     sendMessage(chatId, "На выбранное время все столики заняты.");
@@ -251,32 +231,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                         }
                     }
 
-                    // Чтобы воспользоваться этой функцией, сначала нужно зарегистрироваться  :)
-                    case USER_REGISTRATION -> {
-                        if (messageText.equals("Назад")) {
-                            stageOfChat = StageOfChat.START;
-                            sendMessage(chatId, "Чем могу вам помочь?");
-                        } else sendMessage(chatId, "Неверный формат ввода.");
-                    }
-
                 }
             }
-        }
-
-        else if (update.hasMessage() && update.getMessage().hasContact()) {
-
-            String userName = update.getMessage().getChat().getUserName();
-            String phoneNumber = update.getMessage().getContact().getPhoneNumber();
-
-            try {
-                SavesUsersInterface.saveUser(userName, phoneNumber);
-            }
-            catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-            stageOfChat = StageOfChat.START;
-            sendMessage(update.getMessage().getChatId(), "Теперь мы с вами знакомы, спасибо за доверие!");
         }
 
         // Хороший способ узнать file_id любого документа в тг
@@ -459,30 +415,11 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    //Генерация случайной вместимости столика (2, 4 или 6).
+    // Генерация случайной вместимости столика (2, 4 или 6).
     /*private int randomCapacity(Random random) {
         int[] capacities = {2, 4, 6};
         return capacities[random.nextInt(capacities.length)];
     }*/
-
-    //для того, чтобы выводился точный формат даты.
-    public class GetNearThreeDays {
-
-        private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-        public static String getToday() {
-            return LocalDate.now().format(formatter);
-        }
-
-        public static String getTomorrow() {
-            return LocalDate.now().plusDays(1).format(formatter);
-        }
-
-        public static String getNextTomorrow() {
-            return LocalDate.now().plusDays(2).format(formatter);
-        }
-    }
-
 
     private void sendMessage(long chatId, String textToSend){
 
@@ -519,11 +456,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             case RESERVE_OF_TABLE_TIME -> {
                 ReplyKeyboardMarkup keyboardMarkup = reserveTimeReplyKeyboardMarkup();
-                message.setReplyMarkup(keyboardMarkup);
-            }
-
-            case USER_REGISTRATION -> {
-                ReplyKeyboardMarkup keyboardMarkup = registrationReplyKeyboardMarkup();
                 message.setReplyMarkup(keyboardMarkup);
             }
 
@@ -664,29 +596,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         row = new KeyboardRow();
         row.add("Выбрать другое удобное мне время");
-        keyboardRows.add(row);
-
-        row = new KeyboardRow();
-        row.add("Назад");
-        keyboardRows.add(row);
-
-        keyboardMarkup.setKeyboard(keyboardRows);
-        return keyboardMarkup;
-    }
-
-    private static ReplyKeyboardMarkup registrationReplyKeyboardMarkup() {
-        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        keyboardMarkup.setResizeKeyboard(true);
-        // keyboardMarkup.setOneTimeKeyboard(true); // Убираем клавиатуру после отправки контакта
-
-        List<KeyboardRow> keyboardRows = new ArrayList<>();
-
-        KeyboardButton contactButton = new KeyboardButton();
-        contactButton.setText("Отправить контакт");
-        contactButton.setRequestContact(true); // Включаем запрос контакта
-
-        KeyboardRow row = new KeyboardRow();
-        row.add(contactButton);
         keyboardRows.add(row);
 
         row = new KeyboardRow();
