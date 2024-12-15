@@ -34,6 +34,20 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Random;
 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.SecureRandom;
+import java.util.Base64;
+import org.springframework.stereotype.Service;
+import java.util.Optional;
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
+@Service
 @Slf4j
 @Component
 public class TelegramBot extends TelegramLongPollingBot {
@@ -97,15 +111,14 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
-
             long chatId = update.getMessage().getChatId();
 
             if (messageText.equals("/start")) {
                 registerUser(update.getMessage());
                 stageOfChat = StageOfChat.START;
-                startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
-            }
-            else {
+
+                startCommandReceived(chatId);
+            } else {
 
                 switch (stageOfChat) {
 
@@ -233,44 +246,103 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    private void registerUser(Message msg){
+    public class EncryptionUtils {
+        private static final String ALGORITHM = "AES";
+        private static final String SECRET_KEY = "mySuperSecretKey"; // Секретный ключ (храните его безопасно)
 
-        if(userRepository.findById(msg.getChatId()).isEmpty()){
+        // Метод шифрования
+        public static String encrypt(String data) {
+            try {
+                SecretKeySpec keySpec = generateKey(SECRET_KEY);
+                Cipher cipher = Cipher.getInstance(ALGORITHM);
+                cipher.init(Cipher.ENCRYPT_MODE, keySpec);
+                byte[] encryptedBytes = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
+                return Base64.getEncoder().encodeToString(encryptedBytes);
+            } catch (Exception e) {
+                throw new RuntimeException("Ошибка при шифровании данных", e);
+            }
+        }
 
+        // Метод дешифрования
+        public static String decrypt(String encryptedData) {
+            try {
+                SecretKeySpec keySpec = generateKey(SECRET_KEY);
+                Cipher cipher = Cipher.getInstance(ALGORITHM);
+                cipher.init(Cipher.DECRYPT_MODE, keySpec);
+                byte[] decodedBytes = Base64.getDecoder().decode(encryptedData);
+                byte[] originalBytes = cipher.doFinal(decodedBytes);
+                return new String(originalBytes, StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                throw new RuntimeException("Ошибка при дешифровании данных", e);
+            }
+        }
+
+        private static SecretKeySpec generateKey(String key) throws Exception {
+            byte[] keyBytes = new byte[16];
+            System.arraycopy(key.getBytes(StandardCharsets.UTF_8), 0, keyBytes, 0, Math.min(key.getBytes().length, keyBytes.length));
+            return new SecretKeySpec(keyBytes, ALGORITHM);
+        }
+    }
+
+
+    @Transactional
+    private void registerUser(Message msg) {
+        if (userRepository.findById(msg.getChatId()).isEmpty()) {
             Long chatId = msg.getChatId();
             Chat chat = msg.getChat();
 
             if (chat != null) {
                 User user = new User();
                 user.setChatId(chatId);
-                user.setFirstName(chat.getFirstName());
-                user.setLastName(chat.getLastName());
-                user.setUserName(chat.getUserName());
-                user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
+
+                // Проверяем на null перед шифрованием
+                String firstName = (chat.getFirstName() != null) ? chat.getFirstName() : "Unknown";
+                String lastName = (chat.getLastName() != null) ? chat.getLastName() : "Unknown";
+                String userName = (chat.getUserName() != null) ? chat.getUserName() : "Unknown";
 
                 try {
+                    // Шифруем данные пользователя
+                    user.setFirstName(EncryptionUtils.encrypt(firstName));
+                    user.setLastName(EncryptionUtils.encrypt(lastName));
+                    user.setUserName(EncryptionUtils.encrypt(userName));
+                    user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
+
+                    // Сохраняем пользователя
                     userRepository.save(user);
-                    log.info("Добавлен новый пользователь: {}", user.getUserName());
+                    log.info("Добавлен новый пользователь: {}", chat.getUserName());
+                } catch (Exception e) {
+                    log.error("Произошла ошибка при добавлении нового пользователя: {}", e.getMessage(), e);
                 }
-                catch (Exception e) {
-                    log.error("Произошла ошибка при добавлении нового пользователя: {}", e.getMessage());
-                }
-            }
-            else {
+            } else {
                 log.warn("Чат пустой: {}", msg.getChatId());
             }
-        }
+
     }
 
-    private void startCommandReceived(long chatId, String name){
+}
 
-        String answer = "Доброго времени суток, " + name + ", чем могу вам помочь?";
+    private void startCommandReceived(long chatId) {
+        // Извлекаем данные пользователя из БД
+        Optional<User> optionalUser = userRepository.findById(chatId);
 
-        log.info("Ответил пользователю {}", name);
-        //log.info("Replied to user {}", name);
+        if (optionalUser.isPresent()) {
+            User user = optionalUser.get();
 
-        sendMessage(chatId, answer);
+            try {
+                // Расшифровка имени
+                String firstName = EncryptionUtils.decrypt(user.getFirstName());
 
+                String answer = "Доброго времени суток, " + firstName + ", чем могу вам помочь?";
+                log.info("Ответил пользователю {}", firstName);
+
+                sendMessage(chatId, answer);
+            } catch (Exception e) {
+                log.error("Ошибка при дешифровке данных для пользователя с chatId {}: {}", chatId, e.getMessage(), e);
+                sendMessage(chatId, "Произошла ошибка при обработке вашего запроса.");
+            }
+        } else {
+            log.warn("Пользователь с chatId {} не найден в базе данных", chatId);
+        }
     }
 
     @Transactional
@@ -286,8 +358,8 @@ public class TelegramBot extends TelegramLongPollingBot {
             reservationRepository.flush();
 
             Random random = new Random();
-            LocalTime startTime = LocalTime.of(12, 0); // Время начала (12:00)
-            LocalTime endTime = LocalTime.of(22, 0);  // Время окончания (22:00)
+            LocalTime startTime = LocalTime.of(12, 0);
+            LocalTime endTime = LocalTime.of(22, 0);
 
             LocalDate today = LocalDate.now(); // Текущая дата
             LocalTime currentTime = LocalTime.now(); // Текущее время
@@ -351,12 +423,6 @@ public class TelegramBot extends TelegramLongPollingBot {
             log.error("Ошибка при инициализации бронирований: {}", e.getMessage());
         }
     }
-
-    //Генерация случайной вместимости столика (2, 4 или 6).
-    /*private int randomCapacity(Random random) {
-        int[] capacities = {2, 4, 6};
-        return capacities[random.nextInt(capacities.length)];
-    }*/
 
     //для того, чтобы выводился точный формат даты.
     public class GetNearThreeDays {

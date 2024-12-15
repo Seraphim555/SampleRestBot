@@ -6,23 +6,20 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-
 import java.sql.Timestamp;
 
-@Setter
 @Getter
-@Entity(name = "usersDataTable")
+@Setter
+@Entity
+@Table(name = "user_data_table")
 public class User {
 
     @Id
     private Long chatId;
 
     private String firstName;
-
     private String lastName;
-
     private String userName;
-
     private Timestamp registeredAt;
 
     @Override
@@ -32,7 +29,8 @@ public class User {
                 ", firstName='" + firstName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", userName='" + userName + '\'' +
-                ", registredAt=" + registeredAt +
+                ", registeredAt=" + registeredAt +
                 '}';
     }
 }
+
