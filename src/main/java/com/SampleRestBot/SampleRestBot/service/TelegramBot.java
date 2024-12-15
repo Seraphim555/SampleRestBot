@@ -13,6 +13,12 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
+import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto;
+import org.telegram.telegrambots.meta.api.objects.media.InputMedia;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -123,15 +129,15 @@ public class TelegramBot extends TelegramLongPollingBot {
                         switch (messageText) {
 
                             case "Меню":
-                                sendMessage(chatId, "Пока умеем только варить пельмени");
+                                sendMessageWithDocument(chatId, "_Можете ознакомиться с меню:_");
                                 break;
 
                             case "Локация":
-                                sendMessage(chatId, "Наш филиал располагается по адресу: \nг. Екатеринбург, ул. Тургенева, д. 4");
+                                sendMessageWithPhotos(chatId, "*Мы располагается по адресу:* \n_г. Екатеринбург, ул. Тургенева, д. 4_");
                                 break;
 
                             case "Новинки":
-                                sendMessage(chatId, "Пока что ничего нового(");
+                                sendMessageWithPhoto(chatId, "*Успейте попробовать блюдо декабря:* _Турецкие сладости!_");
                                 break;
 
                             case "Назад":
@@ -217,10 +223,66 @@ public class TelegramBot extends TelegramLongPollingBot {
             sendMessage(update.getMessage().getChatId(), "Теперь мы с вами знакомы, спасибо за доверие!");
         }
 
+        // Хороший способ узнать file_id любого документа в тг
+        /*else if (update.hasMessage() && update.getMessage().hasDocument()){
+            System.out.println(update.getMessage().getDocument().getFileId());
+        }*/
+
         else if (update.hasMessage()) {
             sendMessage(update.getMessage().getChatId(), "Неверный формат ввода.");
         }
 
+    }
+
+    public void sendMessageWithDocument(long chatId, String textToSend) {
+        SendDocument sendDocument = new SendDocument();
+        sendDocument.setChatId(chatId);
+        sendDocument.setDocument(new InputFile("BQACAgIAAxkBAAIGJGdef6ymOi6GkR430mYnXrleCmtlAAKxYQACOX35SnTb3AH9jbQzNgQ"));
+        sendDocument.setParseMode("Markdown");
+        sendDocument.setCaption(textToSend);
+
+        try {
+            execute(sendDocument);
+        }
+        catch (TelegramApiException e){
+            log.error("Произошла ошибка при прикреплении документа: {}", e.getMessage());
+        }
+    }
+
+    public void sendMessageWithPhotos(long chatId, String textToSend) {
+        SendMediaGroup sendMediaGroup = new SendMediaGroup();
+        sendMediaGroup.setChatId(chatId);
+        List<InputMedia> mediaPhotos = new ArrayList<>();
+
+        InputMediaPhoto mediaPhoto = new InputMediaPhoto("https://sun9-22.userapi.com/impg/DC1HrbP_ZbNAkbpT1SwHbHVXCZO11QIR1LfmEA/1gFjBxM-g2w.jpg?size=2560x1920&quality=95&sign=023ba780a6cb7c71fb0be9a20f286d52&type=album");
+        mediaPhoto.setParseMode("Markdown");
+        mediaPhoto.setCaption(textToSend);
+        mediaPhotos.add(mediaPhoto);
+        mediaPhotos.add(new InputMediaPhoto("https://sun9-37.userapi.com/impg/g74iHNLL3u3vj4YxnJw8sLJcDhvLUpYYA9MUdQ/X_WbQIMMiTE.jpg?size=1620x2160&quality=95&sign=e5c9f9fd1a9dddd1323c71a1dec38eb0&type=album"));
+        mediaPhotos.add(new InputMediaPhoto("https://sun9-12.userapi.com/impg/TWpQ8TYwHCD-y2YaScsKtOjAe62IohWT1qNSNQ/d4vEChcN2RU.jpg?size=1620x2160&quality=95&sign=a01e53c6b121bacda94629e620aaed96&type=album"));
+        sendMediaGroup.setMedias(mediaPhotos);
+
+        try {
+            execute(sendMediaGroup);
+        }
+        catch (TelegramApiException e){
+            log.error("Произошла ошибка при прикреплении фотографий: {}", e.getMessage());
+        }
+    }
+
+    public void sendMessageWithPhoto(long chatId, String textToSend) {
+        SendPhoto sendPhoto = new SendPhoto();
+        sendPhoto.setChatId(chatId);
+        sendPhoto.setPhoto(new InputFile("https://sun9-34.userapi.com/impg/Fu7Dntn_nCvfbkjFA47T7CEWtADRIES3pv6gOw/N-VzFVrQeRw.jpg?size=960x1280&quality=95&sign=7cc2227a65807d1687e9a5980e5fc2b6&type=album"));
+        sendPhoto.setParseMode("Markdown");
+        sendPhoto.setCaption(textToSend);
+
+        try {
+            execute(sendPhoto);
+        }
+        catch (TelegramApiException e){
+            log.error("Произошла ошибка при прикреплении фотографии: {}", e.getMessage());
+        }
     }
 
     private void registerUser(Message msg){
