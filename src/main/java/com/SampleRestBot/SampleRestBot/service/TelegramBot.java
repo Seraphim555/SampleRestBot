@@ -15,6 +15,12 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
+import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto;
+import org.telegram.telegrambots.meta.api.objects.media.InputMedia;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -111,28 +117,28 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
+
             long chatId = update.getMessage().getChatId();
 
             if (messageText.equals("/start")) {
                 registerUser(update.getMessage());
                 stageOfChat = StageOfChat.START;
-
-                startCommandReceived(chatId);
-            } else {
+                startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
+            }
+            else {
 
                 switch (stageOfChat) {
 
                     case START -> {
                         switch (messageText) {
 
-                            case "Вызов официанта":
-                                //stageOfChat = StageOfChat.CALLING_THE_WAITER;
-                                sendMessage(chatId, "Григорий сейчас подойдет к вам)");
-                                break;
-
-                            case "Info": // в кейс инфо можно попасть находясь на любом стейдже диалога
+                            case "Info":
                                 stageOfChat = StageOfChat.INFO;
                                 sendMessage(chatId, "Какой вопрос вас интересует?");
+                                break;
+
+                            case "Вызов официанта":
+                                sendMessage(chatId, "Григорий сейчас подойдет к вам)");
                                 break;
 
                             case "Забронировать столик":
@@ -151,15 +157,15 @@ public class TelegramBot extends TelegramLongPollingBot {
                         switch (messageText) {
 
                             case "Меню":
-                                sendMessage(chatId, "Пока умеем только варить пельмени");
+                                sendMessageWithDocument(chatId, "_Можете ознакомиться с меню:_");
                                 break;
 
                             case "Локация":
-                                sendMessage(chatId, "Наш филиал располагается по адресу: \nг. Екатеринбург, ул. Тургенева, д. 4");
+                                sendMessageWithPhotos(chatId, "*Мы располагается по адресу:* \n_г. Екатеринбург, ул. Тургенева, д. 4_");
                                 break;
 
                             case "Новинки":
-                                sendMessage(chatId, "Пока что ничего нового(");
+                                sendMessageWithPhoto(chatId, "*Успейте попробовать блюдо декабря:* _Турецкие сладости!_");
                                 break;
 
                             case "Назад":
@@ -197,13 +203,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                                     sendMessage(chatId, "Для вас есть персональное место!\nВыберите удобное время:");
                                 else
                                     sendMessage(chatId, "Есть свободные места для " + messageText + "-x человек." + "\nВыберите удобное время:");
+                            } else {
+                                sendMessage(chatId, "Введите число от 1 до 6");
                             }
-                            else if (messageText.equals("Назад")) {
-                                stageOfChat = StageOfChat.RESERVE_OF_TABLE;
-                                sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
-                            } else sendMessage(chatId, "Введите число от 1 до 6");
-
-                        } catch (NumberFormatException e) {
+                        }
+                        catch (NumberFormatException e) {
 
                             if (messageText.equals("Назад")) {
                                 stageOfChat = StageOfChat.RESERVE_OF_TABLE;
@@ -244,8 +248,68 @@ public class TelegramBot extends TelegramLongPollingBot {
                 }
             }
         }
+
+        // Хороший способ узнать file_id любого документа в тг
+        /*else if (update.hasMessage() && update.getMessage().hasDocument()){
+            System.out.println(update.getMessage().getDocument().getFileId());
+        }*/
+
+        else if (update.hasMessage()) {
+            sendMessage(update.getMessage().getChatId(), "Неверный формат ввода.");
+        }
+
     }
 
+    public void sendMessageWithDocument(long chatId, String textToSend) {
+        SendDocument sendDocument = new SendDocument();
+        sendDocument.setChatId(chatId);
+        sendDocument.setDocument(new InputFile("BQACAgIAAxkBAAIGJGdef6ymOi6GkR430mYnXrleCmtlAAKxYQACOX35SnTb3AH9jbQzNgQ"));
+        sendDocument.setParseMode("Markdown");
+        sendDocument.setCaption(textToSend);
+
+        try {
+            execute(sendDocument);
+        }
+        catch (TelegramApiException e){
+            log.error("Произошла ошибка при прикреплении документа: {}", e.getMessage());
+        }
+    }
+
+    public void sendMessageWithPhotos(long chatId, String textToSend) {
+        SendMediaGroup sendMediaGroup = new SendMediaGroup();
+        sendMediaGroup.setChatId(chatId);
+        List<InputMedia> mediaPhotos = new ArrayList<>();
+
+        InputMediaPhoto mediaPhoto = new InputMediaPhoto("https://sun9-22.userapi.com/impg/DC1HrbP_ZbNAkbpT1SwHbHVXCZO11QIR1LfmEA/1gFjBxM-g2w.jpg?size=2560x1920&quality=95&sign=023ba780a6cb7c71fb0be9a20f286d52&type=album");
+        mediaPhoto.setParseMode("Markdown");
+        mediaPhoto.setCaption(textToSend);
+        mediaPhotos.add(mediaPhoto);
+        mediaPhotos.add(new InputMediaPhoto("https://sun9-37.userapi.com/impg/g74iHNLL3u3vj4YxnJw8sLJcDhvLUpYYA9MUdQ/X_WbQIMMiTE.jpg?size=1620x2160&quality=95&sign=e5c9f9fd1a9dddd1323c71a1dec38eb0&type=album"));
+        mediaPhotos.add(new InputMediaPhoto("https://sun9-12.userapi.com/impg/TWpQ8TYwHCD-y2YaScsKtOjAe62IohWT1qNSNQ/d4vEChcN2RU.jpg?size=1620x2160&quality=95&sign=a01e53c6b121bacda94629e620aaed96&type=album"));
+        sendMediaGroup.setMedias(mediaPhotos);
+
+        try {
+            execute(sendMediaGroup);
+        }
+        catch (TelegramApiException e){
+            log.error("Произошла ошибка при прикреплении фотографий: {}", e.getMessage());
+        }
+    }
+
+    public void sendMessageWithPhoto(long chatId, String textToSend) {
+        SendPhoto sendPhoto = new SendPhoto();
+        sendPhoto.setChatId(chatId);
+        sendPhoto.setPhoto(new InputFile("https://sun9-34.userapi.com/impg/Fu7Dntn_nCvfbkjFA47T7CEWtADRIES3pv6gOw/N-VzFVrQeRw.jpg?size=960x1280&quality=95&sign=7cc2227a65807d1687e9a5980e5fc2b6&type=album"));
+        sendPhoto.setParseMode("Markdown");
+        sendPhoto.setCaption(textToSend);
+
+        try {
+            execute(sendPhoto);
+        }
+        catch (TelegramApiException e){
+            log.error("Произошла ошибка при прикреплении фотографии: {}", e.getMessage());
+        }
+    }
     public class EncryptionUtils {
         private static final String ALGORITHM = "AES";
         private static final String SECRET_KEY = "mySuperSecretKey"; // Секретный ключ (храните его безопасно)
@@ -317,9 +381,9 @@ public class TelegramBot extends TelegramLongPollingBot {
                 log.warn("Чат пустой: {}", msg.getChatId());
             }
 
-    }
+        }
 
-}
+    }
 
     private void startCommandReceived(long chatId) {
         // Извлекаем данные пользователя из БД
@@ -345,6 +409,46 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
+    private void registerUser(Message msg){
+
+        if(userRepository.findById(msg.getChatId()).isEmpty()){
+
+            Long chatId = msg.getChatId();
+            Chat chat = msg.getChat();
+
+            if (chat != null) {
+                User user = new User();
+                user.setChatId(chatId);
+                user.setFirstName(chat.getFirstName());
+                user.setLastName(chat.getLastName());
+                user.setUserName(chat.getUserName());
+                user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
+
+                try {
+                    userRepository.save(user);
+                    log.info("Добавлен новый пользователь: {}", user.getUserName());
+                }
+                catch (Exception e) {
+                    log.error("Произошла ошибка при добавлении нового пользователя: {}", e.getMessage());
+                }
+            }
+            else {
+                log.warn("Чат пустой: {}", msg.getChatId());
+            }
+        }
+    }
+
+    private void startCommandReceived(long chatId, String name){
+
+        String answer = "Доброго времени суток, " + name + ", чем могу вам помочь?";
+
+        log.info("Ответил пользователю {}", name);
+        //log.info("Replied to user {}", name);
+
+        sendMessage(chatId, answer);
+
+    }
+
     @Transactional
     private void initializeReservations() {
         if (reservationRepository == null) {
@@ -358,8 +462,8 @@ public class TelegramBot extends TelegramLongPollingBot {
             reservationRepository.flush();
 
             Random random = new Random();
-            LocalTime startTime = LocalTime.of(12, 0);
-            LocalTime endTime = LocalTime.of(22, 0);
+            LocalTime startTime = LocalTime.of(12, 0); // Время начала (12:00)
+            LocalTime endTime = LocalTime.of(22, 0);  // Время окончания (22:00)
 
             LocalDate today = LocalDate.now(); // Текущая дата
             LocalTime currentTime = LocalTime.now(); // Текущее время
@@ -423,6 +527,12 @@ public class TelegramBot extends TelegramLongPollingBot {
             log.error("Ошибка при инициализации бронирований: {}", e.getMessage());
         }
     }
+
+    //Генерация случайной вместимости столика (2, 4 или 6).
+    /*private int randomCapacity(Random random) {
+        int[] capacities = {2, 4, 6};
+        return capacities[random.nextInt(capacities.length)];
+    }*/
 
     //для того, чтобы выводился точный формат даты.
     public class GetNearThreeDays {
@@ -488,8 +598,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
         catch (TelegramApiException e){
             log.error("Произошла ошибка: {}", e.getMessage());
-            //log.error("Error occurred: {}", e.getMessage());
-
         }
     }
 
