@@ -1,10 +1,7 @@
 package com.SampleRestBot.SampleRestBot.service;
 
 import com.SampleRestBot.SampleRestBot.config.BotConfig;
-import com.SampleRestBot.SampleRestBot.model.Reservation;
-import com.SampleRestBot.SampleRestBot.model.ReservationRepository;
-import com.SampleRestBot.SampleRestBot.model.User;
-import com.SampleRestBot.SampleRestBot.model.UserRepository;
+import com.SampleRestBot.SampleRestBot.model.*;
 import com.SampleRestBot.SampleRestBot.mySource.GetNearThreeDays;
 import com.SampleRestBot.SampleRestBot.mySource.StageOfChat;
 import com.SampleRestBot.SampleRestBot.mySource.generalConstants.GeneralConstants;
@@ -123,9 +120,10 @@ public class TelegramBot extends TelegramLongPollingBot {
             if (messageText.equals("/start")) {
                 registerUser(update.getMessage());
                 stageOfChat = StageOfChat.START;
+
                 startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
-            }
-            else {
+
+            } else {
 
                 switch (stageOfChat) {
 
@@ -179,71 +177,104 @@ public class TelegramBot extends TelegramLongPollingBot {
                         }
                     }
 
-                    // На какое число вы бы хотели назначить бронь?
                     case RESERVE_OF_TABLE -> {
-                        if (messageText.equals(GetNearThreeDays.getToday()) || messageText.equals(GetNearThreeDays.getTomorrow()) || messageText.equals(GetNearThreeDays.getNextTomorrow())) {
+                        String selectedDate = messageText;
+
+                        if (selectedDate.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
+                            // Сохраняем дату в сессии пользователя
+                            UserSession userSession = UserSessionManager.getUserSession(chatId);
+                            userSession.setSelectedDate(selectedDate);
+
                             stageOfChat = StageOfChat.RESERVE_OF_TABLE_PERSON;
                             sendMessage(chatId, "На какое количество человек нужен столик? (до 6 человек)");
-                        } else if (messageText.equals("Назад")) {
-                            stageOfChat = StageOfChat.START;
-                            sendMessage(chatId, "Чем могу вам помочь?");
-                        } else sendMessage(chatId, "Неверный формат ввода.");
-
+                        } else {
+                            sendMessage(chatId, "Пожалуйста, введите корректную дату в формате YYYY-MM-DD.");
+                        }
                     }
 
-                    // На какое количество человек нужен столик? (до 6 человек)
                     case RESERVE_OF_TABLE_PERSON -> {
                         try {
-
                             int count = Integer.parseInt(messageText);
 
                             if (1 <= count && count <= GeneralConstants.getMaxTableCapacity()) {
-                                stageOfChat = StageOfChat.RESERVE_OF_TABLE_TIME;
-                                if (count == 1)
-                                    sendMessage(chatId, "Для вас есть персональное место!\nВыберите удобное время:");
-                                else
-                                    sendMessage(chatId, "Есть свободные места для " + messageText + "-x человек." + "\nВыберите удобное время:");
-                            } else {
-                                sendMessage(chatId, "Введите число от 1 до 6");
-                            }
-                        }
-                        catch (NumberFormatException e) {
+                                // Сохраняем количество персон в сессии пользователя
+                                UserSession userSession = UserSessionManager.getUserSession(chatId);
+                                userSession.setCapacity(count);
 
+                                stageOfChat = StageOfChat.RESERVE_OF_TABLE_TIME;
+
+                                if (count == 1) {
+                                    sendMessage(chatId, "Для вас есть персональное место!\nВыберите удобное время:");
+                                } else {
+                                    sendMessage(chatId, "Есть свободные места для " + messageText + "-х человек.\nВыберите удобное время:");
+                                }
+                            } else {
+                                sendMessage(chatId, "Введите число от 1 до " + GeneralConstants.getMaxTableCapacity());
+                            }
+                        } catch (NumberFormatException e) {
                             if (messageText.equals("Назад")) {
                                 stageOfChat = StageOfChat.RESERVE_OF_TABLE;
                                 sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
-                            } else sendMessage(chatId, "Неверный формат ввода.");
-
+                            } else {
+                                sendMessage(chatId, "Неверный формат ввода.");
+                            }
                         }
                     }
 
                     case RESERVE_OF_TABLE_TIME -> {
                         String selectedTime = messageText;
 
-                        if (selectedTime.equals("11:00") || selectedTime.equals("15:00") || selectedTime.equals("19:00")) {
-                            List<Reservation> availableTables = reservationRepository.findByDateAndTime(GetNearThreeDays.getToday(), selectedTime);
+                        // Извлекаем дату и количество персон из сессии пользователя
+                        UserSession userSession = UserSessionManager.getUserSession(chatId);
+                        String selectedDate = userSession.getSelectedDate();
+                        int requestedCapacity = userSession.getCapacity();
+
+                        if (selectedTime.matches("^(\\d{2}):00$")) {
+                            // Ищем доступные столики на выбранную дату и время
+                            List<Reservation> availableTables = reservationRepository.findByDateAndTime(selectedDate, selectedTime);
 
                             if (!availableTables.isEmpty()) {
-                                Reservation table = availableTables.stream().filter(r -> !r.isReserved()).findFirst().orElse(null);
+                                Reservation table = availableTables.stream()
+                                        .filter(r -> r.getCapacity() >= requestedCapacity && !r.isReserved())
+                                        .findFirst()
+                                        .orElse(null);
 
                                 if (table != null) {
                                     table.setReserved(true);
                                     reservationRepository.save(table);
-                                    sendMessage(chatId, "Столик успешно забронирован на " + selectedTime);
+
+                                    sendMessage(chatId, String.format("Для вас забронирован столик на %s, на %s, на %d персон. Ждем вас!",
+                                            selectedDate, selectedTime, requestedCapacity));
                                     stageOfChat = StageOfChat.START;
                                 } else {
-                                    sendMessage(chatId, "На выбранное время все столики заняты.");
+                                    Reservation biggerTable = availableTables.stream()
+                                            .filter(r -> r.getCapacity() > requestedCapacity && !r.isReserved())
+                                            .findFirst()
+                                            .orElse(null);
+
+                                    if (biggerTable != null) {
+                                        biggerTable.setReserved(true);
+                                        reservationRepository.save(biggerTable);
+
+                                        sendMessage(chatId, String.format(
+                                                "К сожалению, столик на %d персон занят, но для вас забронирован столик на %d персон на %s, на %s. Ждем вас!",
+                                                requestedCapacity, biggerTable.getCapacity(), selectedDate, selectedTime));
+                                        stageOfChat = StageOfChat.START;
+                                    } else {
+                                        sendMessage(chatId, "На указанное время нет свободных столиков.");
+                                    }
                                 }
                             } else {
                                 sendMessage(chatId, "На указанное время нет свободных столиков.");
                             }
-                        } else if (messageText.equals("Назад")) {
+                        } else if (selectedTime.equals("Назад")) {
                             stageOfChat = StageOfChat.RESERVE_OF_TABLE;
                             sendMessage(chatId, "На какое число вы бы хотели назначить бронь?");
                         } else {
-                            sendMessage(chatId, "Пожалуйста, выберите время из предложенных вариантов.");
+                            sendMessage(chatId, "Пожалуйста, введите корректное время в формате HH:00 (например, 16:00) или выберите из предложенных.");
                         }
                     }
+
 
                 }
             }
@@ -385,7 +416,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     }
 
-    private void startCommandReceived(long chatId) {
+    private void startCommandReceived(long chatId, String firstName) {
         // Извлекаем данные пользователя из БД
         Optional<User> optionalUser = userRepository.findById(chatId);
 
@@ -394,10 +425,10 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             try {
                 // Расшифровка имени
-                String firstName = EncryptionUtils.decrypt(user.getFirstName());
+                String decryptedFirstName = EncryptionUtils.decrypt(user.getFirstName());
 
-                String answer = "Доброго времени суток, " + firstName + ", чем могу вам помочь?";
-                log.info("Ответил пользователю {}", firstName);
+                String answer = "Доброго времени суток, " + decryptedFirstName + ", чем могу вам помочь?";
+                log.info("Ответил пользователю {}", decryptedFirstName);
 
                 sendMessage(chatId, answer);
             } catch (Exception e) {
@@ -406,50 +437,16 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
         } else {
             log.warn("Пользователь с chatId {} не найден в базе данных", chatId);
+            String answer = "Доброго времени суток, " + firstName + ", чем могу вам помочь?";
+            sendMessage(chatId, answer);
         }
     }
 
-    private void registerUser(Message msg){
 
-        if(userRepository.findById(msg.getChatId()).isEmpty()){
 
-            Long chatId = msg.getChatId();
-            Chat chat = msg.getChat();
 
-            if (chat != null) {
-                User user = new User();
-                user.setChatId(chatId);
-                user.setFirstName(chat.getFirstName());
-                user.setLastName(chat.getLastName());
-                user.setUserName(chat.getUserName());
-                user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
 
-                try {
-                    userRepository.save(user);
-                    log.info("Добавлен новый пользователь: {}", user.getUserName());
-                }
-                catch (Exception e) {
-                    log.error("Произошла ошибка при добавлении нового пользователя: {}", e.getMessage());
-                }
-            }
-            else {
-                log.warn("Чат пустой: {}", msg.getChatId());
-            }
-        }
-    }
-
-    private void startCommandReceived(long chatId, String name){
-
-        String answer = "Доброго времени суток, " + name + ", чем могу вам помочь?";
-
-        log.info("Ответил пользователю {}", name);
-        //log.info("Replied to user {}", name);
-
-        sendMessage(chatId, answer);
-
-    }
-
-    @Transactional
+@Transactional
     private void initializeReservations() {
         if (reservationRepository == null) {
             log.error("ReservationRepository is null!");
